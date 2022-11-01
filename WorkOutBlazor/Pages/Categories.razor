@@ -1,0 +1,131 @@
+﻿@page "/Categories"
+@inject HttpClient Http
+
+@inject NotificationService NotificationSvc
+
+<PageTitle>Categories</PageTitle>
+
+<h1>Categories</h1>
+
+@if (categories == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <RadzenDataGrid @ref="@categoriesGrid" AllowFiltering="@true" AllowSorting="@true" AllowColumnResize="@true" PageSize="5" AllowPaging="@true" ColumnWidth="250px"
+                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" FilterMode="FilterMode.Simple" PagerHorizontalAlign="HorizontalAlign.Center"
+                EditMode="DataGridEditMode.Single" Data="@categories" TItem="Category_GridDTO" RowUpdate="@OnUpdateRow" RowCreate="@OnCreateRow">
+        <Columns>
+            <RadzenDataGridColumn TItem="Category_GridDTO" Title="Category name" TextAlign="TextAlign.Center" Filterable="@true" Property="@(nameof(Category_GridDTO.Name))">
+                <EditTemplate Context="category">
+                    <RadzenTextBox @bind-Value="category.Name" Name="Category Name" Style="width:100%; display: block;" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Category_GridDTO" Title="Category description" TextAlign="TextAlign.Center" Property="@(nameof(Category_GridDTO.Description))">
+                <EditTemplate Context="category">
+                    <RadzenTextBox @bind-Value="category.Description" Name="Category Description" Style="width:100%; display: block;" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Category_GridDTO" Filterable="@false" Sortable="@false" Width="80px" TextAlign="TextAlign.Center">
+                <Template Context="category">
+                    <RadzenButton Size="ButtonSize.Small" Icon="edit" ButtonStyle="ButtonStyle.Primary" Click="(args) => EditCategory(category)" />
+                </Template>
+                <EditTemplate Context="category">
+                    <RadzenButton icon="save" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Click="(args) => SaveCategory(category)" />
+                    <RadzenButton icon="cancel" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Click="@((args) => categoriesGrid.CancelEditRow(category))" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Category_GridDTO" Filterable="@false" Sortable="@false" Width="80px" TextAlign="TextAlign.Center">
+                <Template Context="category">
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="async (args) => await DeleteCategory(category)" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+    <br />
+    <RadzenButton Icon="add_circle_outline" Text="Add New Category" ButtonStyle="ButtonStyle.Success" Click="(args) => AddCategory()" />
+}
+
+@code
+{
+    private RadzenDataGrid<Category_GridDTO> categoriesGrid;
+    private Category_GridDTO[] categories;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await Http.GetFromJsonAsync<Category_GridDTO[]>("api/Categories");
+    }
+
+    async Task EditCategory(Category_GridDTO category)
+    {
+        await categoriesGrid.EditRow(category);
+    }
+
+    private void AddCategory()
+    {
+        categoriesGrid.InsertRow(new Category_GridDTO());
+    }
+
+    private void SaveCategory(Category_GridDTO category)
+    {
+        categoriesGrid.UpdateRow(category);
+    }
+
+    private async Task OnCreateRow(Category_GridDTO category)
+    {
+        var res = await Http.PostAsJsonAsync<Category_GridDTO>("api/Categories", category);
+
+        if (!res.IsSuccessStatusCode)
+        {
+            NotificationSvc.Notify(
+                NotificationSeverity.Error,
+                "Saving failed",
+                await res.Content.ReadAsStringAsync(),
+                8000);
+            categoriesGrid.CancelEditRow(category);
+        }
+        //reload always
+        categories = await Http.GetFromJsonAsync<Category_GridDTO[]>("api/Categories");
+        StateHasChanged();
+    }
+
+    private async Task OnUpdateRow(Category_GridDTO category)
+    {
+        var res = await Http.PutAsJsonAsync<Category_GridDTO>($"api/Categories/{category.Id}", category);
+
+        if (!res.IsSuccessStatusCode)
+        {
+            NotificationSvc.Notify(
+                NotificationSeverity.Error,
+                "Saving failed",
+                await res.Content.ReadAsStringAsync(),
+                8000);
+        }
+        // reload always
+        categories = await Http.GetFromJsonAsync<Category_GridDTO[]>("api/Categories");
+        StateHasChanged();
+    }
+
+    private async Task DeleteCategory(Category_GridDTO category)
+    {
+        var res = await Http.DeleteAsync($"api/Categories/{category.Id}");
+
+        if (!res.IsSuccessStatusCode)
+        {
+            NotificationSvc.Notify(
+                NotificationSeverity.Error,
+                "Deletion failed",
+                await res.Content.ReadAsStringAsync(),
+                8000);
+        }
+        else
+        {
+            categories = await Http.GetFromJsonAsync<Category_GridDTO[]>("api/Categories");
+            StateHasChanged();
+        }
+
+    }
+
+}

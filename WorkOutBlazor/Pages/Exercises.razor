@@ -1,0 +1,151 @@
+﻿@page "/Exercises"
+
+@inject HttpClient Http
+
+@inject NotificationService NotificationSvc
+
+<PageTitle>Exercises</PageTitle>
+
+<h1>Exercises</h1>
+
+@if (exercises == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <RadzenDataGrid @ref="@exercisesGrid" AllowSorting="@true" AllowColumnResize="@true" PageSize="5" AllowPaging="@true" AllowFiltering="@true"
+                FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" FilterMode="FilterMode.Simple" PagerHorizontalAlign="HorizontalAlign.Center" 
+                Data="@exercises" TItem="Exercise_GridDTO" RowUpdate="@OnUpdateRow" RowCreate="@OnCreateRow">
+        <Columns>
+            <RadzenDataGridColumn TItem="Exercise_GridDTO" Title="Exercise name" TextAlign="TextAlign.Center"
+                              Property="@(nameof(Exercise_GridDTO.Name))">
+                <EditTemplate Context="exercise">
+                    <RadzenTextBox @bind-Value="@exercise.Name" Name="Exercise Name" Style="width:100%; display: block;" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Exercise_GridDTO" Title="Exercise category" TextAlign="TextAlign.Center" Property="@(nameof(Exercise_GridDTO.CategoryId))"
+            Filterable="@false">
+                <Template Context="exercise">
+                    @exercise.CategoryName
+                </Template>
+                <EditTemplate Context="exercise">
+                    <RadzenDropDown TValue="int" Multiple="@false" Data="@categories" Placeholder="Select category" Style="width: 240px"
+                                TextProperty="@(nameof(Category_GridDTO.Name))" ValueProperty="@(nameof(Category_GridDTO.Id))"
+                                 @bind-Value="@exercise.CategoryId"  />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Exercise_GridDTO" Title="Description" TextAlign="TextAlign.Center" Filterable="@false"
+            Property="@(nameof(Exercise_GridDTO.Description))">
+                <EditTemplate Context="exercise">
+                    <RadzenTextBox @bind-Value="exercise.Description" Name="Exercise Description" Style="width:100%; display: block;" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Exercise_GridDTO" Title="Videolink" TextAlign="TextAlign.Center" Filterable="@false"
+                              Property="@(nameof(Exercise_GridDTO.VideoLink))">
+                <EditTemplate Context="exercise">
+                    <RadzenTextBox @bind-Value="exercise.VideoLink" Name="Exercise Videolink" Style="width:100%; display: block;" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Exercise_GridDTO" Filterable="@false" Sortable="@false" Width="80px" TextAlign="TextAlign.Center">
+                <Template Context="exercise">
+                    <RadzenButton Size="ButtonSize.Small" Icon="edit" ButtonStyle="ButtonStyle.Primary" Click="(args) => EditExercise(exercise)" />
+                </Template>
+                <EditTemplate Context="exercise">
+                    <RadzenButton icon="save" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Primary" Click="(args) => SaveExercise(exercise)" />
+                    <RadzenButton icon="cancel" Size="ButtonSize.Small" ButtonStyle="ButtonStyle.Secondary" Click="@((args) => exercisesGrid.CancelEditRow(exercise))" />
+                </EditTemplate>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Exercise_GridDTO" Filterable="@false" Sortable="@false" Width="80px" TextAlign="TextAlign.Center">
+                <Template Context="exercise">
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Click="async (args) => await DeleteExercise(exercise)" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+    <br />
+    <RadzenButton Icon="add_circle_outline" Text="Add New Exercise" ButtonStyle="ButtonStyle.Success" Click="(args) => AddExercise()" />
+}
+
+@code
+{
+    private Category_GridDTO[] categories;
+    private Exercise_GridDTO[] exercises;
+    private RadzenDataGrid<Exercise_GridDTO> exercisesGrid;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await Http.GetFromJsonAsync<Category_GridDTO[]>("api/Categories");
+        exercises = await Http.GetFromJsonAsync<Exercise_GridDTO[]>("api/Exercises");
+    }
+
+    async Task EditExercise(Exercise_GridDTO exercise)
+    {
+        await exercisesGrid.EditRow(exercise);
+    }
+
+    private void AddExercise()
+    {
+        exercisesGrid.InsertRow(new Exercise_GridDTO());
+    }
+
+    private void SaveExercise(Exercise_GridDTO exercise)
+    {
+        exercisesGrid.UpdateRow(exercise);
+    }
+
+    private async Task OnCreateRow(Exercise_GridDTO exercise)
+    {
+        var res = await Http.PostAsJsonAsync<Exercise_GridDTO>("api/Exercises", exercise);
+
+        if (!res.IsSuccessStatusCode)
+        {
+            NotificationSvc.Notify(
+                NotificationSeverity.Error,
+                "Saving failed",
+                await res.Content.ReadAsStringAsync(),
+                8000);
+            exercisesGrid.CancelEditRow(exercise);
+        }
+        //reload always
+        exercises = await Http.GetFromJsonAsync<Exercise_GridDTO[]>("api/Exercises");
+        StateHasChanged();
+    }
+
+    private async Task OnUpdateRow(Exercise_GridDTO exercise)
+    {
+        var res = await Http.PutAsJsonAsync<Exercise_GridDTO>($"api/Exercises/{exercise.Id}", exercise);
+
+        if (!res.IsSuccessStatusCode)
+        {
+            NotificationSvc.Notify(
+                NotificationSeverity.Error,
+                "Saving failed",
+                await res.Content.ReadAsStringAsync(),
+                8000);
+        }
+        // reload always
+        exercises = await Http.GetFromJsonAsync<Exercise_GridDTO[]>("api/Exercises");
+        StateHasChanged();
+    }
+
+    private async Task DeleteExercise(Exercise_GridDTO exercise)
+    {
+        var res = await Http.DeleteAsync($"api/Exercises/{exercise.Id}");
+
+        if (!res.IsSuccessStatusCode)
+        {
+            NotificationSvc.Notify(
+                NotificationSeverity.Error,
+                "Deletion failed",
+                await res.Content.ReadAsStringAsync(),
+                8000);
+        }
+        else
+        {
+            exercises = await Http.GetFromJsonAsync<Exercise_GridDTO[]>("api/Exercises");
+            StateHasChanged();
+        }
+
+    }
+}
